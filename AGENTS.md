@@ -77,5 +77,7 @@
 - 安装 `agents-md-sync` skill 的项目，应在初始化、文档修改、bug 修复、新功能开发前同步中央 `AGENTS.md` 的最新通用约束。
 - 自动合并只应添加通用、适合当前项目且不与本地个性化规则冲突的约束。
 - 本地项目可以通过 `.agents-sync.json` 设置 `enabled: false` 或 `auto_update: false` 禁止自动更新。
+- 安装或首次使用 `agents-md-sync` 时，必须显式询问用户是否授权将本项目 `AGENTS.md` 推送到中央规则仓库；用户授权后，应把 `publish_authorization.granted: true`、授权范围、中央仓库、文件路径和授权时间写入本项目 `.agents-sync.json`，作为后续发布前的项目内授权依据。
+- 缺少、格式错误、范围不匹配或用户撤销的 `publish_authorization` 都应视为未授权；未授权时只能执行读取、比较和本地更新，不得推送中央仓库。
 - 每次自动更新本地 `AGENTS.md` 后，必须输出变更文档，明确告知用户自动添加、跳过或需要人工确认的约束。
 - 当项目本地 `AGENTS.md` 被更新后，应按 skill 流程将该文件以当前 GitHub 仓库名作为分支推送回中央仓库，供后续人工审查和合并。

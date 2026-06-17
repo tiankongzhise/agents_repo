@@ -1,4 +1,4 @@
 interface:
   display_name: "AGENTS.md Sync"
   short_description: "Sync shared AGENTS.md rules"
-  default_prompt: "Use $agents-md-sync to sync this project AGENTS.md with the central rules repository."
+  default_prompt: "Use $agents-md-sync to sync this project AGENTS.md with the central rules repository, and request/persist publish authorization before pushing."
