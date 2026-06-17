@@ -31,3 +31,14 @@
 - [x] 增加无法解析 owner 时阻塞发布的规则，避免回退到裸仓库名。
 - [x] 同步更新中央 `AGENTS.md`、PRD、SPEC、TECH 和计划文档。
 - [x] 执行文档一致性检查、Git diff review 和 Markdown 空白检查。
+
+## 发布内容收敛与 gh 沙箱误判修正
+
+- [x] 阅读中央 `AGENTS.md`、本地项目文档、近期 Git 历史、`agents-md-sync` skill 和命令模板。
+- [x] 明确中央项目分支只允许发布目标项目根目录给 AI 读取的 `AGENTS.md`。
+- [x] 更新 skill 描述、默认值和发布流程，禁止发布 `docs/`、`skills/`、源码、配置、报告或其他路径。
+- [x] 更新 PowerShell 和 Bash 发布模板，使用单文件 orphan 发布分支、显式暂存 `AGENTS.md`，并在发现其他路径时中止。
+- [x] 补充 Codex 沙箱中 `gh` 权限类失败的处理规则：先按沙箱限制判断，必要时提权重试同一命令，再决定是否 fallback 或报告真实授权问题。
+- [x] 同步更新中央 `AGENTS.md`、PRD、SPEC、TECH 和计划文档。
+- [x] 执行文档一致性检查、Git diff review、Markdown 空白检查和发布模板单文件模拟。
+- [x] 创建清晰 Git commit。

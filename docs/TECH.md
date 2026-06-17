@@ -47,7 +47,7 @@
     "local_agents_path": "AGENTS.md",
     "granted_at": "YYYY-MM-DDTHH:MM:SSZ",
     "granted_by": "user",
-    "note": "User authorized agents-md-sync to publish this project's AGENTS.md to the central rules repository branch for this project."
+    "note": "User authorized agents-md-sync to publish only this project's root AI-facing AGENTS.md to the central rules repository branch for this project."
   }
 }
 ```
@@ -64,6 +64,18 @@
 
 缺少或不匹配时，只允许执行读取、比较和本地更新，不能推送中央仓库。
 
+## 发布内容边界
+
+中央项目分支不是目标项目镜像，只承载目标项目根目录给 AI 读取的 `AGENTS.md`。发布流程使用中央仓库临时 clone，但项目分支应作为单文件 artifact 处理：
+
+- 源文件限定为目标项目根目录 `AGENTS.md`。
+- 目标文件限定为中央临时仓库根目录 `AGENTS.md`。
+- 临时中央仓库只显式暂存 `AGENTS.md`，不得使用 `git add .`。
+- 提交前读取 `git status --porcelain`，如出现任何非 `AGENTS.md` 路径则中止。
+- 远端项目分支已有相同 `AGENTS.md` 时跳过 commit 和 push。
+
+命令模板采用 orphan 发布分支，避免从中央 `main` 继承本仓库自己的 `docs/`、`skills/` 等内容。这样中央项目分支只表达“该项目当前 AI 协作规则文件是什么”，维护者再从中人工提炼公共 `AGENTS.md`。
+
 ## 发布分支命名
 
 中央仓库的项目回传分支使用 GitHub 完整仓库名 `owner/repo`，而不是只使用 repo 名。这样可以避免不同 owner 拥有同名仓库时写入同一个中央分支。
@@ -75,3 +87,15 @@
 - 如果无法解析 owner 或 repo，发布流程必须失败并要求用户确认完整 `owner/repo`，不能静默降级为裸仓库名。
 
 清洗规则：owner 和 repo 分段转小写，仅保留字母、数字、`.`、`_`、`-`，其他字符替换为 `-`；清洗后使用 `/` 拼接为发布分支，例如 `tiankongzhise/auto_backup_bdnetdesk`。
+
+## Codex 沙箱中的 GitHub CLI
+
+Codex 沙箱可能限制 `gh` 读取本机凭据、keychain、配置目录或访问网络。因此 `gh auth status`、`gh repo view`、`gh api` 在沙箱内出现权限类、认证类或网络类失败时，不能直接判定为 GitHub CLI 未登录或 token 无效。
+
+处理顺序：
+
+- 先把错误归类为“可能的沙箱限制”。
+- 若该 `gh` 命令对当前同步或发布必要，按 Codex escalation 规则提权重试同一命令。
+- 提权后仍失败，再根据错误内容判断是否为真实 GitHub 授权、仓库权限或 token 问题。
+- 不因沙箱内 `gh` 失败改写或撤销项目 `.agents-sync.json` 中的 `publish_authorization`。
+- `gh` 不可用时，按 skill 规则 fallback 到 plain Git。

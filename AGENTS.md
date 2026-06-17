@@ -88,4 +88,6 @@
 - 安装或首次使用 `agents-md-sync` 时，必须显式询问用户是否授权将本项目 `AGENTS.md` 推送到中央规则仓库；用户授权后，应把 `publish_authorization.granted: true`、授权范围、中央仓库、文件路径和授权时间写入本项目 `.agents-sync.json`，作为后续发布前的项目内授权依据。
 - 缺少、格式错误、范围不匹配或用户撤销的 `publish_authorization` 都应视为未授权；未授权时只能执行读取、比较和本地更新，不得推送中央仓库。
 - 每次自动更新本地 `AGENTS.md` 后，必须输出变更文档，明确告知用户自动添加、跳过或需要人工确认的约束。
-- 当项目本地 `AGENTS.md` 被更新后，应按 skill 流程将该文件以当前 GitHub 仓库完整名（`owner/repo`）作为分支推送回中央仓库，供后续人工审查和合并；若无法解析 owner，不得退回到裸仓库名发布。
+- 当项目本地 `AGENTS.md` 被更新后，应按 skill 流程将项目根目录给 AI 读取的 `AGENTS.md` 以当前 GitHub 仓库完整名（`owner/repo`）作为分支推送回中央仓库，供后续人工审查和提炼公共 `AGENTS.md`；若无法解析 owner，不得退回到裸仓库名发布。
+- `agents-md-sync` 发布分支只允许包含单个 `AGENTS.md` 文件；不得推送项目的 `docs/`、`skills/`、源码、配置、同步报告、构建产物或其他路径，也不得用中央仓库项目分支镜像目标项目。
+- Codex 沙箱中运行 `gh auth status`、`gh repo view` 或 `gh api` 可能因无法访问凭据、keychain、网络或配置而显示类似未授权的错误；这类失败应先按沙箱权限问题处理，必要时用提权重试同一条 `gh` 命令，不能直接判定为 GitHub CLI 未登录或撤销项目发布授权。

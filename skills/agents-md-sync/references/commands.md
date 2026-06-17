@@ -26,6 +26,8 @@ gh --version
 gh auth status
 ```
 
+In Codex sandboxed shells, `gh auth status`, `gh repo view`, or `gh api` can fail with authorization-looking messages because the sandbox cannot read credentials, keychain state, config, or the network. Treat that as a possible sandbox problem first: rerun the same `gh` command with shell escalation before concluding GitHub CLI is unauthenticated or before changing project publish authorization.
+
 Inspect optional config without requiring a JSON parser:
 
 ```powershell
@@ -34,7 +36,7 @@ if (Test-Path -LiteralPath '.\.agents-sync.json') {
 }
 ```
 
-Persist project-local publish authorization after the user explicitly approves it:
+Persist project-local publish authorization after the user explicitly approves publishing only the root AI-facing `AGENTS.md`:
 
 ```powershell
 $configPath = '.\.agents-sync.json'
@@ -46,7 +48,7 @@ $authorization = [ordered]@{
   local_agents_path = 'AGENTS.md'
   granted_at = $now
   granted_by = 'user'
-  note = "User authorized agents-md-sync to publish this project's AGENTS.md to the central rules repository branch for this project."
+  note = "User authorized agents-md-sync to publish only this project's root AI-facing AGENTS.md to the central rules repository branch for this project."
 }
 
 if (Test-Path -LiteralPath $configPath) {
@@ -150,22 +152,55 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $reportPath = Join-Path $reportDir "$stamp-agents-sync.md"
 ```
 
-Publish local `AGENTS.md` to the central repository branch named after the current GitHub owner/repo:
+Publish only local root `AGENTS.md` to the central repository branch named after the current GitHub owner/repo. The publish branch must contain no project `docs/`, `skills/`, source, configs, reports, or other files:
 
 ```powershell
+$localAgentsPath = Join-Path (Get-Location) 'AGENTS.md'
+if (-not (Test-Path -LiteralPath $localAgentsPath -PathType Leaf)) {
+  Write-Error "Missing root AGENTS.md. agents-md-sync only publishes the target project's root AI-facing AGENTS.md."
+  exit 1
+}
+
 $tmp = Join-Path $env:TEMP ('agents-md-sync-publish-' + [Guid]::NewGuid().ToString('N'))
-git clone git@github.com:tiankongzhise/agents_repo.git $tmp
+git clone --no-checkout git@github.com:tiankongzhise/agents_repo.git $tmp
 git -C $tmp fetch origin main
-git -C $tmp switch -C $publishBranch origin/main
-Copy-Item -LiteralPath '.\AGENTS.md' -Destination (Join-Path $tmp 'AGENTS.md') -Force
-if (git -C $tmp status --short AGENTS.md) {
-  git -C $tmp add AGENTS.md
+
+$remoteAgentsPath = Join-Path $tmp '.remote-AGENTS.md'
+$remoteHasSameAgents = $false
+$remoteRef = "refs/remotes/origin/$publishBranch"
+git -C $tmp fetch origin "${publishBranch}:$remoteRef" 2>$null
+if ($LASTEXITCODE -eq 0) {
+  git -C $tmp show "${remoteRef}:AGENTS.md" 2>$null | Set-Content -Encoding UTF8 -LiteralPath $remoteAgentsPath
+  $remotePaths = @(git -C $tmp ls-tree -r --name-only $remoteRef)
+  if (
+    (Test-Path -LiteralPath $remoteAgentsPath) -and
+    ((Get-FileHash -LiteralPath $remoteAgentsPath).Hash -eq (Get-FileHash -LiteralPath $localAgentsPath).Hash) -and
+    $remotePaths.Count -eq 1 -and
+    $remotePaths[0] -eq 'AGENTS.md'
+  ) {
+    $remoteHasSameAgents = $true
+  }
+}
+
+if ($remoteHasSameAgents) {
+  Write-Output "Central publish branch already has the same AGENTS.md; skipping commit and push."
+} else {
+  git -C $tmp switch --orphan $publishBranch
+  Remove-Item -LiteralPath $remoteAgentsPath -Force -ErrorAction SilentlyContinue
+  Copy-Item -LiteralPath $localAgentsPath -Destination (Join-Path $tmp 'AGENTS.md') -Force
+  git -C $tmp add -- AGENTS.md
+  $status = git -C $tmp status --porcelain
+  $unexpected = $status | Where-Object { $_ -notmatch '^[ MADRCUA?!][ MADRCUA?!] AGENTS\.md$' }
+  if ($unexpected) {
+    Write-Error "Refusing to publish unexpected paths to central repository:`n$($unexpected -join "`n")"
+    exit 1
+  }
   git -C $tmp commit -m "同步 $publishBranch 的 AGENTS.md"
   git -C $tmp push -u origin $publishBranch --force-with-lease
 }
 ```
 
-If `git status --short` is empty before commit, skip the commit and push.
+If the remote publish branch already contains only the same `AGENTS.md`, skip the commit and push.
 
 ## Bash
 
@@ -177,13 +212,15 @@ gh --version
 gh auth status
 ```
 
+In Codex sandboxed shells, `gh auth status`, `gh repo view`, or `gh api` can fail with authorization-looking messages because the sandbox cannot read credentials, keychain state, config, or the network. Treat that as a possible sandbox problem first: rerun the same `gh` command with shell escalation before concluding GitHub CLI is unauthenticated or before changing project publish authorization.
+
 Inspect optional config without requiring a JSON parser:
 
 ```bash
 test -f .agents-sync.json && cat .agents-sync.json
 ```
 
-Persist project-local publish authorization after the user explicitly approves it:
+Persist project-local publish authorization after the user explicitly approves publishing only the root AI-facing `AGENTS.md`:
 
 ```bash
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -196,7 +233,7 @@ if command -v jq >/dev/null 2>&1 && [ -f .agents-sync.json ]; then
     "local_agents_path": "AGENTS.md",
     "granted_at": $now,
     "granted_by": "user",
-    "note": "User authorized agents-md-sync to publish this project'\''s AGENTS.md to the central rules repository branch for this project."
+    "note": "User authorized agents-md-sync to publish only this project'\''s root AI-facing AGENTS.md to the central rules repository branch for this project."
   }' .agents-sync.json > "$tmp_config" && mv "$tmp_config" .agents-sync.json
 elif [ -f .agents-sync.json ]; then
   printf '%s\n' 'Existing .agents-sync.json found and jq is unavailable. Preserve existing fields and add publish_authorization manually before publishing.' >&2
@@ -219,7 +256,7 @@ else
     "local_agents_path": "AGENTS.md",
     "granted_at": "$now",
     "granted_by": "user",
-    "note": "User authorized agents-md-sync to publish this project's AGENTS.md to the central rules repository branch for this project."
+    "note": "User authorized agents-md-sync to publish only this project's root AI-facing AGENTS.md to the central rules repository branch for this project."
   }
 }
 EOF
@@ -305,22 +342,49 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 report_path="$report_dir/$stamp-agents-sync.md"
 ```
 
-Publish local `AGENTS.md` to the central repository branch named after the current GitHub owner/repo:
+Publish only local root `AGENTS.md` to the central repository branch named after the current GitHub owner/repo. The publish branch must contain no project `docs/`, `skills/`, source, configs, reports, or other files:
 
 ```bash
+local_agents_path="$PWD/AGENTS.md"
+if [ ! -f "$local_agents_path" ]; then
+  printf '%s\n' "Missing root AGENTS.md. agents-md-sync only publishes the target project's root AI-facing AGENTS.md." >&2
+  exit 1
+fi
+
 tmp="$(mktemp -d)"
-git clone git@github.com:tiankongzhise/agents_repo.git "$tmp"
+git clone --no-checkout git@github.com:tiankongzhise/agents_repo.git "$tmp"
 git -C "$tmp" fetch origin main
-git -C "$tmp" switch -C "$publish_branch" origin/main
-cp AGENTS.md "$tmp/AGENTS.md"
-if [ -n "$(git -C "$tmp" status --short AGENTS.md)" ]; then
-  git -C "$tmp" add AGENTS.md
+
+remote_has_same_agents=false
+remote_ref="refs/remotes/origin/$publish_branch"
+if git -C "$tmp" fetch origin "$publish_branch:$remote_ref" >/dev/null 2>&1 &&
+   git -C "$tmp" show "$remote_ref:AGENTS.md" > "$tmp/.remote-AGENTS.md" 2>/dev/null; then
+  remote_paths="$(git -C "$tmp" ls-tree -r --name-only "$remote_ref")"
+  if cmp -s "$local_agents_path" "$tmp/.remote-AGENTS.md" &&
+     [ "$remote_paths" = "AGENTS.md" ]; then
+    remote_has_same_agents=true
+  fi
+fi
+
+if [ "$remote_has_same_agents" = true ]; then
+  printf '%s\n' "Central publish branch already has the same AGENTS.md; skipping commit and push."
+else
+  git -C "$tmp" switch --orphan "$publish_branch"
+  rm -f "$tmp/.remote-AGENTS.md"
+  cp "$local_agents_path" "$tmp/AGENTS.md"
+  git -C "$tmp" add -- AGENTS.md
+  status="$(git -C "$tmp" status --porcelain)"
+  unexpected="$(printf '%s\n' "$status" | sed '/^[ MADRCUA?!][ MADRCUA?!] AGENTS\.md$/d;/^$/d')"
+  if [ -n "$unexpected" ]; then
+    printf '%s\n%s\n' "Refusing to publish unexpected paths to central repository:" "$unexpected" >&2
+    exit 1
+  fi
   git -C "$tmp" commit -m "同步 $publish_branch 的 AGENTS.md"
   git -C "$tmp" push -u origin "$publish_branch" --force-with-lease
 fi
 ```
 
-If `git status --short` is empty before commit, skip the commit and push.
+If the remote publish branch already contains only the same `AGENTS.md`, skip the commit and push.
 
 ## Merge Checklist
 
@@ -330,3 +394,6 @@ If `git status --short` is empty before commit, skip the commit and push.
 - Write a report for every automatic update.
 - Do not publish if `.agents-sync.json` has `enabled: false` or `auto_publish_on_agents_change: false`.
 - Do not publish unless `.agents-sync.json` has a matching `publish_authorization.granted: true` block created after explicit user authorization.
+- Publish only the target project's root AI-facing `AGENTS.md`, copied to central `AGENTS.md`.
+- Never publish project `docs/`, `skills/`, source, configs, reports, generated files, or any path other than `AGENTS.md`.
+- Never use `git add .` or directory copies in the central temporary clone; stage exactly `AGENTS.md`.

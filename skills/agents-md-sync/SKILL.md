@@ -1,6 +1,6 @@
 ---
 name: agents-md-sync
-description: Sync project AGENTS.md files with a central rules repository without requiring Python or another project runtime. Use when Codex initializes a project, starts documentation work, bug fixes, feature development, updates AGENTS.md, compares local AI rules with the central AGENTS.md, honors .agents-sync.json opt-out and publish-authorization settings, requests or persists authorization to publish AGENTS.md, or pushes a project AGENTS.md back to git@github.com:tiankongzhise/agents_repo.git using the current GitHub owner/repository full name as the branch.
+description: Sync project AGENTS.md files with a central rules repository without requiring Python or another project runtime. Use when Codex initializes a project, starts documentation work, bug fixes, feature development, updates AGENTS.md, compares local AI rules with the central AGENTS.md, honors .agents-sync.json opt-out and publish-authorization settings, requests or persists authorization to publish AGENTS.md, or publishes only the target project's root AI-facing AGENTS.md as a single-file branch in git@github.com:tiankongzhise/agents_repo.git using the current GitHub owner/repository full name as the branch. Never publish project docs, skills, source, configs, reports, or other files.
 ---
 
 # AGENTS.md Sync
@@ -9,11 +9,13 @@ description: Sync project AGENTS.md files with a central rules repository withou
 
 Synchronize `AGENTS.md` by using universally available project tools. Prefer GitHub CLI (`gh`) when it is installed and authenticated; otherwise use plain `git`. Do not require Python, Node, Go, Rust, or any project runtime in the target project.
 
+Publishing is deliberately narrow. The central publish branch is a single-file artifact containing only the target project's root AI-facing `AGENTS.md`, copied to central `AGENTS.md`. It is input for maintainers to improve the public `AGENTS.md`, not a mirror, backup, or distributable copy of the target project.
+
 Use this skill in three moments:
 
 - Project initialization, before creating or finalizing local `AGENTS.md`.
 - Before documentation edits, bug fixes, feature work, refactors, tests, migrations, or deployment changes.
-- After local `AGENTS.md` changes, before finishing the task, to publish the project version back to the central repository.
+- After local root `AGENTS.md` changes, before finishing the task, to publish only that AI-facing file back to the central repository for review.
 
 For exact PowerShell and Bash command templates, read `references/commands.md` when executing the workflow.
 
@@ -22,10 +24,12 @@ For exact PowerShell and Bash command templates, read `references/commands.md` w
 - Central repository: `git@github.com:tiankongzhise/agents_repo.git`
 - Central branch: `main`
 - Central file: `AGENTS.md`
-- Local file candidates: configured path, then `AGENTS.md`, `agents.md`, `AGENTS.MD`
+- Local file candidates: configured root filename, then root `AGENTS.md`, `agents.md`, `AGENTS.MD`
 - Local config: `.agents-sync.json`
 - Change reports: `docs/agents-sync/`
 - Publish branch: sanitized current GitHub owner/repository full name, such as `tiankongzhise/auto_backup_bdnetdesk`
+- Publish payload: exactly one file, the target project's root AI-facing `AGENTS.md` copied to central `AGENTS.md`
+- Publish branch contents: only `AGENTS.md`; no target project `docs/`, `skills/`, source, configs, reports, generated files, or other paths
 - Publish authorization: explicit user grant persisted in the target project's `.agents-sync.json`
 
 Honor `.agents-sync.json` if present. Treat missing config as:
@@ -58,7 +62,7 @@ Read `.agents-sync.json` directly as text when no JSON parser is available. This
 
 ## Install-Time Publish Authorization
 
-Publishing local `AGENTS.md` back to the central repository changes an external repository. During skill installation, project initialization, or first use in a project that lacks a valid grant, explicitly ask the user whether they authorize `agents-md-sync` to push this project's local `AGENTS.md` to the configured central repository on the branch named after the current GitHub owner/repository full name.
+Publishing local `AGENTS.md` back to the central repository changes an external repository. During skill installation, project initialization, or first use in a project that lacks a valid grant, explicitly ask the user whether they authorize `agents-md-sync` to push only this project's root AI-facing `AGENTS.md`, and no other files, to the configured central repository on the branch named after the current GitHub owner/repository full name.
 
 If the user grants authorization, persist it in the target project's `.agents-sync.json` before the first publish:
 
@@ -71,7 +75,7 @@ If the user grants authorization, persist it in the target project's `.agents-sy
     "local_agents_path": "AGENTS.md",
     "granted_at": "YYYY-MM-DDTHH:MM:SSZ",
     "granted_by": "user",
-    "note": "User authorized agents-md-sync to publish this project's AGENTS.md to the central rules repository branch for this project."
+    "note": "User authorized agents-md-sync to publish only this project's root AI-facing AGENTS.md to the central rules repository branch for this project."
   }
 }
 ```
@@ -86,10 +90,11 @@ This project-local authorization is required for `agents-md-sync` publishing, bu
 
 1. Check `git --version`. If Git is unavailable, generate manual instructions and stop before mutating files.
 2. Check `gh --version` and `gh auth status`.
-3. Use `gh` for reading GitHub repository metadata and raw central `AGENTS.md` only when it works.
-4. Fall back to `git ls-remote`, `git fetch`, `git show`, and `git remote get-url origin` for all required operations.
-5. If SSH access to `git@github.com:tiankongzhise/agents_repo.git` is blocked, retry the same Git flow with `https://github.com/tiankongzhise/agents_repo.git` before giving up.
-6. Use temporary directories under the local workspace or system temp. Do not leave cloned central repositories behind unless needed for troubleshooting.
+3. In Codex sandboxed shells, `gh auth status`, `gh repo view`, or `gh api` can fail with authorization-looking messages because the sandbox cannot read credentials, keychain state, config, or the network. Treat that as a possible sandbox problem first: rerun the same `gh` command with shell escalation before concluding GitHub CLI is unauthenticated or before changing project publish authorization.
+4. Use `gh` for reading GitHub repository metadata and raw central `AGENTS.md` only when it works after the sandbox check above.
+5. Fall back to `git ls-remote`, `git fetch`, `git show`, and `git remote get-url origin` for all required operations.
+6. If SSH access to `git@github.com:tiankongzhise/agents_repo.git` is blocked, retry the same Git flow with `https://github.com/tiankongzhise/agents_repo.git` before giving up.
+7. Use temporary directories under the local workspace or system temp. Do not leave cloned central repositories behind unless needed for troubleshooting.
 
 ## Initialize Or Preflight
 
@@ -130,18 +135,19 @@ When local `AGENTS.md` changes and publishing is enabled and authorized:
 1. Confirm `.agents-sync.json` does not disable sync or publishing.
 2. Confirm `publish_authorization.granted` is `true`, `scope` is `push_local_agents_to_central_repo`, and the authorized `central_repo` and `local_agents_path` match the publish operation.
 3. If authorization is missing or mismatched, ask the user for explicit authorization and persist it before publishing. Do not push on inferred or implicit consent.
-4. Resolve the current project GitHub owner/repository full name.
+4. Confirm the local source is the target project's root AI-facing `AGENTS.md` or a configured root-level filename variant. Reject nested paths such as `docs/AGENTS.md`, `skills/**`, generated reports, or any directory copy.
+5. Resolve the current project GitHub owner/repository full name.
    - Prefer `gh repo view --json nameWithOwner --jq .nameWithOwner`.
    - Fall back to parsing `git remote get-url origin`.
    - If the owner cannot be resolved, stop publishing and ask the user to confirm the full `owner/repo`; do not fall back to the repository name alone.
-5. Sanitize the owner and repository segments separately to lowercase letters, digits, `.`, `_`, and `-`; replace other characters with `-`; join the sanitized segments with `/`.
-6. Create a temporary clone or worktree of the central repository.
-7. Start from the latest central `main`.
-8. Create or reset the publish branch named after the sanitized GitHub owner/repository full name.
-9. Replace central `AGENTS.md` with the current project's local `AGENTS.md`.
-10. Commit only if there is a file difference. Use a Chinese commit message when working in a Chinese project.
-11. Push the branch to the central repository.
-12. If network, authentication, sandbox, or approval handling blocks the push, report the exact failed command and leave local project changes untouched. Do not remove the persisted authorization unless the user revokes it.
+6. Sanitize the owner and repository segments separately to lowercase letters, digits, `.`, `_`, and `-`; replace other characters with `-`; join the sanitized segments with `/`.
+7. Create a temporary clone or worktree of the central repository.
+8. Fetch central refs for lease safety, then create or reset an orphan publish branch named after the sanitized GitHub owner/repository full name.
+9. Clear the temporary publish branch and copy only the current project's root `AGENTS.md` to central `AGENTS.md`. Never copy project directories and never use `git add .`.
+10. Before committing, inspect `git status --porcelain` in the temporary central clone. If any path other than `AGENTS.md` appears, abort publishing and report the unexpected paths.
+11. Commit only the single `AGENTS.md` file. Use a Chinese commit message when working in a Chinese project.
+12. Push the branch to the central repository with lease protection.
+13. If network, authentication, sandbox, or approval handling blocks the push, report the exact failed command and leave local project changes untouched. Do not remove the persisted authorization unless the user revokes it.
 
 ## Merge Judgment
 
