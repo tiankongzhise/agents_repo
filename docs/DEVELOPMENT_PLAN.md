@@ -22,3 +22,12 @@
 - [x] 更新中央 `AGENTS.md` 通用约束。
 - [x] 补充需求、技术和规格文档。
 - [x] 完成文档一致性检查和 Git diff review。
+
+## 发布分支命名防冲突
+
+- [x] 阅读中央 `AGENTS.md`、本地项目文档、近期 Git 历史和 `agents-md-sync` skill。
+- [x] 将 skill 默认发布分支规则从裸仓库名改为 GitHub 完整名 `owner/repo`。
+- [x] 更新 PowerShell 和 Bash 命令模板，优先使用 `nameWithOwner`，并在 Git remote fallback 中解析 owner。
+- [x] 增加无法解析 owner 时阻塞发布的规则，避免回退到裸仓库名。
+- [x] 同步更新中央 `AGENTS.md`、PRD、SPEC、TECH 和计划文档。
+- [x] 执行文档一致性检查、Git diff review 和 Markdown 空白检查。

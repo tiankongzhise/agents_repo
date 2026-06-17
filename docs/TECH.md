@@ -63,3 +63,15 @@
 - 授权记录中的 `central_repo` 和 `local_agents_path` 与本次发布目标一致。
 
 缺少或不匹配时，只允许执行读取、比较和本地更新，不能推送中央仓库。
+
+## 发布分支命名
+
+中央仓库的项目回传分支使用 GitHub 完整仓库名 `owner/repo`，而不是只使用 repo 名。这样可以避免不同 owner 拥有同名仓库时写入同一个中央分支。
+
+解析优先级：
+
+- GitHub CLI 可用时，使用 `gh repo view --json nameWithOwner --jq .nameWithOwner`。
+- GitHub CLI 不可用时，从 `git remote get-url origin` 解析 `github.com:owner/repo.git`、`https://github.com/owner/repo.git` 或等价 GitHub URL。
+- 如果无法解析 owner 或 repo，发布流程必须失败并要求用户确认完整 `owner/repo`，不能静默降级为裸仓库名。
+
+清洗规则：owner 和 repo 分段转小写，仅保留字母、数字、`.`、`_`、`-`，其他字符替换为 `-`；清洗后使用 `/` 拼接为发布分支，例如 `tiankongzhise/auto_backup_bdnetdesk`。

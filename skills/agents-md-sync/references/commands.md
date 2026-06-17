@@ -114,18 +114,31 @@ git -C $tmp remote set-url origin https://github.com/tiankongzhise/agents_repo.g
 git -C $tmp fetch --depth=1 origin main
 ```
 
-Resolve the current GitHub repository name with `gh`:
+Resolve the current GitHub owner/repository full name with `gh`:
 
 ```powershell
-$repoName = gh repo view --json name --jq .name
+$repoFullName = gh repo view --json nameWithOwner --jq .nameWithOwner
+$repoParts = ($repoFullName -replace '\\', '/').Trim('/') -split '/'
+if ($repoParts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($repoParts[0]) -or [string]::IsNullOrWhiteSpace($repoParts[1])) {
+  Write-Error "Unable to resolve GitHub owner/repo from gh output: $repoFullName"
+  exit 1
+}
+$repoOwner = ($repoParts[0].ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+$repoName = ($repoParts[1].ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+$publishBranch = "$repoOwner/$repoName"
 ```
 
-Resolve the current GitHub repository name with Git remote parsing:
+Resolve the current GitHub owner/repository full name with Git remote parsing:
 
 ```powershell
-$originUrl = git remote get-url origin
-$repoName = [System.IO.Path]::GetFileNameWithoutExtension(($originUrl -replace '\\', '/').TrimEnd('/'))
-$repoName = ($repoName.ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+$originUrl = (git remote get-url origin) -replace '\\', '/'
+if ($originUrl -notmatch 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(?:\.git)?/?$') {
+  Write-Error "Unable to resolve GitHub owner/repo from origin URL: $originUrl"
+  exit 1
+}
+$repoOwner = ($Matches.owner.ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+$repoName = ($Matches.repo.ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+$publishBranch = "$repoOwner/$repoName"
 ```
 
 Create a change report directory:
@@ -137,18 +150,18 @@ $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $reportPath = Join-Path $reportDir "$stamp-agents-sync.md"
 ```
 
-Publish local `AGENTS.md` to the central repository branch named after the current repo:
+Publish local `AGENTS.md` to the central repository branch named after the current GitHub owner/repo:
 
 ```powershell
 $tmp = Join-Path $env:TEMP ('agents-md-sync-publish-' + [Guid]::NewGuid().ToString('N'))
 git clone git@github.com:tiankongzhise/agents_repo.git $tmp
 git -C $tmp fetch origin main
-git -C $tmp switch -C $repoName origin/main
+git -C $tmp switch -C $publishBranch origin/main
 Copy-Item -LiteralPath '.\AGENTS.md' -Destination (Join-Path $tmp 'AGENTS.md') -Force
 if (git -C $tmp status --short AGENTS.md) {
   git -C $tmp add AGENTS.md
-  git -C $tmp commit -m "同步 $repoName 的 AGENTS.md"
-  git -C $tmp push -u origin $repoName --force-with-lease
+  git -C $tmp commit -m "同步 $publishBranch 的 AGENTS.md"
+  git -C $tmp push -u origin $publishBranch --force-with-lease
 }
 ```
 
@@ -250,18 +263,37 @@ git -C "$tmp" remote set-url origin https://github.com/tiankongzhise/agents_repo
 git -C "$tmp" fetch --depth=1 origin main
 ```
 
-Resolve the current GitHub repository name with `gh`:
+Resolve the current GitHub owner/repository full name with `gh`:
 
 ```bash
-repo_name="$(gh repo view --json name --jq .name)"
+repo_full_name="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+repo_owner="${repo_full_name%%/*}"
+repo_name="${repo_full_name#*/}"
+if [ "$repo_full_name" = "$repo_name" ] || [ -z "$repo_owner" ] || [ -z "$repo_name" ]; then
+  printf '%s\n' "Unable to resolve GitHub owner/repo from gh output: $repo_full_name" >&2
+  exit 1
+fi
+repo_owner="$(printf '%s' "$repo_owner" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+repo_name="$(printf '%s' "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+publish_branch="$repo_owner/$repo_name"
 ```
 
-Resolve the current GitHub repository name with Git remote parsing:
+Resolve the current GitHub owner/repository full name with Git remote parsing:
 
 ```bash
 origin_url="$(git remote get-url origin)"
-repo_name="$(basename "${origin_url%.git}")"
+normalized_origin_url="$(printf '%s' "$origin_url" | sed 's#\\#/#g')"
+repo_full_name="$(printf '%s' "$normalized_origin_url" | sed -E 's#^.*github\.com[:/]([^/]+/[^/]+)(\.git)?/?$#\1#')"
+repo_full_name="${repo_full_name%.git}"
+if [ "$repo_full_name" = "$normalized_origin_url" ] || ! printf '%s' "$repo_full_name" | grep -Eq '^[^/]+/[^/]+$'; then
+  printf '%s\n' "Unable to resolve GitHub owner/repo from origin URL: $origin_url" >&2
+  exit 1
+fi
+repo_owner="${repo_full_name%%/*}"
+repo_name="${repo_full_name#*/}"
+repo_owner="$(printf '%s' "$repo_owner" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
 repo_name="$(printf '%s' "$repo_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+publish_branch="$repo_owner/$repo_name"
 ```
 
 Create a change report directory:
@@ -273,18 +305,18 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 report_path="$report_dir/$stamp-agents-sync.md"
 ```
 
-Publish local `AGENTS.md` to the central repository branch named after the current repo:
+Publish local `AGENTS.md` to the central repository branch named after the current GitHub owner/repo:
 
 ```bash
 tmp="$(mktemp -d)"
 git clone git@github.com:tiankongzhise/agents_repo.git "$tmp"
 git -C "$tmp" fetch origin main
-git -C "$tmp" switch -C "$repo_name" origin/main
+git -C "$tmp" switch -C "$publish_branch" origin/main
 cp AGENTS.md "$tmp/AGENTS.md"
 if [ -n "$(git -C "$tmp" status --short AGENTS.md)" ]; then
   git -C "$tmp" add AGENTS.md
-  git -C "$tmp" commit -m "同步 $repo_name 的 AGENTS.md"
-  git -C "$tmp" push -u origin "$repo_name" --force-with-lease
+  git -C "$tmp" commit -m "同步 $publish_branch 的 AGENTS.md"
+  git -C "$tmp" push -u origin "$publish_branch" --force-with-lease
 fi
 ```
 

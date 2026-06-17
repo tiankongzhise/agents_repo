@@ -37,6 +37,10 @@
 
 安装或首次使用 `agents-md-sync` 时，必须明确询问用户是否授权将本项目 `AGENTS.md` 推送到中央规则仓库。用户授权后，授权状态需要固化到目标项目的 `.agents-sync.json` 中，后续发布前先校验该授权，避免运行时推送审批被自动拒绝后导致本地 `AGENTS.md` 无法被中央仓库接收。
 
+### 发布分支命名防冲突
+
+`agents-md-sync` 发布回中央仓库时，不能只使用仓库名作为分支名。不同 GitHub owner 下可能存在同名仓库，例如 `owner-a/project` 和 `owner-b/project`，裸仓库名会把两个项目的 `AGENTS.md` 汇入同一中央分支。发布分支必须使用当前项目 GitHub 完整名 `owner/repo`，并在无法解析 owner 时停止发布、要求用户确认。
+
 ## 核心流程
 
 1. 读取目标项目本地配置和 `AGENTS.md`。
@@ -45,7 +49,7 @@
 4. 写入同步报告。
 5. 当本地 `AGENTS.md` 发生变化且发布启用时，先检查项目内发布授权。
 6. 如无授权，向用户索要明确授权；授权后写入 `.agents-sync.json`。
-7. 将本地 `AGENTS.md` 推送到中央仓库中以项目仓库名命名的分支。
+7. 将本地 `AGENTS.md` 推送到中央仓库中以项目 GitHub 完整名 `owner/repo` 命名的分支。
 
 ## 约束
 
@@ -66,3 +70,5 @@
 - 默认 `.agents-sync.json` 配置包含 `publish_authorization` 结构且默认未授权。
 - 发布流程明确要求校验 `publish_authorization.granted: true` 和授权范围匹配。
 - 命令模板包含写入和校验授权的示例。
+- 发布分支命名规则使用当前项目 GitHub 完整名 `owner/repo`，例如 `tiankongzhise/auto_backup_bdnetdesk`。
+- 如果无法从 `gh` 或 `origin` 解析 owner，发布流程必须停止，不能退回到只使用仓库名。

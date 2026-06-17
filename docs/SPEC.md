@@ -24,8 +24,7 @@
 
 ### 无影响说明
 
-- 本次变更不修改 `agents-md-sync` 同步命令、发布授权逻辑或中央仓库分支命名规则。
-- 本次变更不新增运行时代码依赖、UI、API、数据迁移或部署影响。
+- 本规则本身不新增运行时代码依赖、UI、API、数据迁移或部署影响。
 
 ## AGENTS 同步授权优化
 
@@ -43,6 +42,26 @@
 
 ### 无影响说明
 
-- 本次变更不新增运行时代码依赖。
-- 本次变更不改变中央仓库分支命名规则。
-- 本次变更无 UI、API、数据迁移或部署影响。
+- 本授权优化不新增运行时代码依赖。
+- 本授权优化无 UI、API、数据迁移或部署影响。
+
+## 发布分支命名防冲突
+
+### 背景
+
+原 `agents-md-sync` 规则把中央仓库发布分支定义为“当前 GitHub 仓库名”，例如 `auto_backup_bdnetdesk`。该规则无法区分不同 owner 下的同名仓库，可能导致多个项目写入同一中央分支。
+
+### 规格
+
+- 发布分支必须使用当前项目 GitHub 完整名 `owner/repo`，例如 `tiankongzhise/auto_backup_bdnetdesk`。
+- 解析仓库信息时优先使用 `gh repo view --json nameWithOwner --jq .nameWithOwner`。
+- 无法使用 `gh` 时，必须从 `git remote get-url origin` 解析 GitHub owner 和 repo。
+- owner 和 repo 必须分段清洗：转小写，只保留字母、数字、`.`、`_`、`-`，其他字符替换为 `-`。
+- 清洗后用 `/` 拼接 owner 和 repo，保留该斜杠作为中央分支命名空间分隔符。
+- 如果无法解析 owner 或 repo，发布流程必须停止并要求用户确认完整 `owner/repo`；不得退回到只使用 repo 名。
+- 命令模板必须统一使用 `publishBranch` 或 `publish_branch` 作为推送分支变量，避免和裸 `repoName` 混用。
+
+### 无影响说明
+
+- 本变更不修改同步授权字段、中央仓库地址、中央主分支或本地 managed block 规则。
+- 本变更不新增运行时代码依赖、UI、API、数据迁移或部署影响。

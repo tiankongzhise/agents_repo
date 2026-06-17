@@ -1,6 +1,6 @@
 ---
 name: agents-md-sync
-description: Sync project AGENTS.md files with a central rules repository without requiring Python or another project runtime. Use when Codex initializes a project, starts documentation work, bug fixes, feature development, updates AGENTS.md, compares local AI rules with the central AGENTS.md, honors .agents-sync.json opt-out and publish-authorization settings, requests or persists authorization to publish AGENTS.md, or pushes a project AGENTS.md back to git@github.com:tiankongzhise/agents_repo.git using the current GitHub repository name as the branch.
+description: Sync project AGENTS.md files with a central rules repository without requiring Python or another project runtime. Use when Codex initializes a project, starts documentation work, bug fixes, feature development, updates AGENTS.md, compares local AI rules with the central AGENTS.md, honors .agents-sync.json opt-out and publish-authorization settings, requests or persists authorization to publish AGENTS.md, or pushes a project AGENTS.md back to git@github.com:tiankongzhise/agents_repo.git using the current GitHub owner/repository full name as the branch.
 ---
 
 # AGENTS.md Sync
@@ -25,7 +25,7 @@ For exact PowerShell and Bash command templates, read `references/commands.md` w
 - Local file candidates: configured path, then `AGENTS.md`, `agents.md`, `AGENTS.MD`
 - Local config: `.agents-sync.json`
 - Change reports: `docs/agents-sync/`
-- Publish branch: sanitized current GitHub repository name, not owner name
+- Publish branch: sanitized current GitHub owner/repository full name, such as `tiankongzhise/auto_backup_bdnetdesk`
 - Publish authorization: explicit user grant persisted in the target project's `.agents-sync.json`
 
 Honor `.agents-sync.json` if present. Treat missing config as:
@@ -58,7 +58,7 @@ Read `.agents-sync.json` directly as text when no JSON parser is available. This
 
 ## Install-Time Publish Authorization
 
-Publishing local `AGENTS.md` back to the central repository changes an external repository. During skill installation, project initialization, or first use in a project that lacks a valid grant, explicitly ask the user whether they authorize `agents-md-sync` to push this project's local `AGENTS.md` to the configured central repository on the branch named after the current GitHub repository.
+Publishing local `AGENTS.md` back to the central repository changes an external repository. During skill installation, project initialization, or first use in a project that lacks a valid grant, explicitly ask the user whether they authorize `agents-md-sync` to push this project's local `AGENTS.md` to the configured central repository on the branch named after the current GitHub owner/repository full name.
 
 If the user grants authorization, persist it in the target project's `.agents-sync.json` before the first publish:
 
@@ -130,13 +130,14 @@ When local `AGENTS.md` changes and publishing is enabled and authorized:
 1. Confirm `.agents-sync.json` does not disable sync or publishing.
 2. Confirm `publish_authorization.granted` is `true`, `scope` is `push_local_agents_to_central_repo`, and the authorized `central_repo` and `local_agents_path` match the publish operation.
 3. If authorization is missing or mismatched, ask the user for explicit authorization and persist it before publishing. Do not push on inferred or implicit consent.
-4. Resolve the current project GitHub repository name.
-   - Prefer `gh repo view --json name --jq .name`.
+4. Resolve the current project GitHub owner/repository full name.
+   - Prefer `gh repo view --json nameWithOwner --jq .nameWithOwner`.
    - Fall back to parsing `git remote get-url origin`.
-5. Sanitize the name to lowercase letters, digits, `.`, `_`, and `-`; replace other characters with `-`.
+   - If the owner cannot be resolved, stop publishing and ask the user to confirm the full `owner/repo`; do not fall back to the repository name alone.
+5. Sanitize the owner and repository segments separately to lowercase letters, digits, `.`, `_`, and `-`; replace other characters with `-`; join the sanitized segments with `/`.
 6. Create a temporary clone or worktree of the central repository.
 7. Start from the latest central `main`.
-8. Create or reset the publish branch named after the GitHub repository.
+8. Create or reset the publish branch named after the sanitized GitHub owner/repository full name.
 9. Replace central `AGENTS.md` with the current project's local `AGENTS.md`.
 10. Commit only if there is a file difference. Use a Chinese commit message when working in a Chinese project.
 11. Push the branch to the central repository.
